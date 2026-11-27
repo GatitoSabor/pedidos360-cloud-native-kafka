@@ -23,6 +23,7 @@ public class KafkaAdminService {
     }
 
     public void createTopic(TopicRequest request) throws Exception {
+        // El factor de réplica se envía explícitamente para no depender del valor por defecto del broker.
         NewTopic topic = new NewTopic(request.name(), request.partitions(), request.replicationFactor());
         if (request.configs() != null && !request.configs().isEmpty()) topic.configs(request.configs());
         adminClient.createTopics(List.of(topic)).all().get();
@@ -39,6 +40,7 @@ public class KafkaAdminService {
     }
 
     public void updateTopicConfig(String topicName, TopicConfigRequest request) throws Exception {
+        // incrementalAlterConfigs cambia solo las claves recibidas y conserva el resto de la configuración.
         ConfigResource resource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
         Collection<AlterConfigOp> operations = request.configs().entrySet().stream()
                 .map(entry -> new AlterConfigOp(new ConfigEntry(entry.getKey(), entry.getValue()), AlterConfigOp.OpType.SET))
@@ -58,6 +60,7 @@ public class KafkaAdminService {
     }
 
     public void deleteTopic(String topicName) throws Exception {
+        // Operación administrativa: se ejecuta de forma explícita desde la API, nunca al iniciar el servicio.
         adminClient.deleteTopics(List.of(topicName)).all().get();
     }
 

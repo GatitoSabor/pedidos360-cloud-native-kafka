@@ -19,6 +19,7 @@ public class KafkaRetryConfig {
             ConsumerFactory<String, PedidoEvent> consumerFactory) {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, PedidoEvent>();
         factory.setConsumerFactory(consumerFactory);
+        // Tres reintentos, separados por 1 s; al agotarse se registra topic/partición/offset.
         factory.setCommonErrorHandler(new DefaultErrorHandler(
                 (ConsumerRecord<?, ?> record, Exception error) -> log.error("Kafka descartó topic={} partition={} offset={}", record.topic(), record.partition(), record.offset(), error),
                 new FixedBackOff(1000L, 3L)));

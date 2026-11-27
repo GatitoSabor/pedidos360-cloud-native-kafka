@@ -23,9 +23,12 @@ public class PedidoEventProducer {
      */
     public void publish(Pedido pedido, String eventType) {
         PedidoEvent event = new PedidoEvent(pedido.getId(), eventType, pedido.getDescripcion(), pedido.getEstado(), Instant.now());
+        // RabbitMQ se conserva para el flujo anterior de colas y DLQ.
         rabbitTemplate.convertAndSend(RabbitTopologyConfig.EVENTS_EXCHANGE, eventType, event);
+        // pedidoId como key mantiene el orden de eventos de un mismo pedido en una partición.
         kafkaTemplate.send(KafkaTopicConfig.PEDIDO_EVENTS_TOPIC, pedido.getId().toString(), event);
         if ("pedido.aprobado".equals(eventType) || "pedido.rechazado".equals(eventType)) {
+            // Las decisiones tienen un stream separado para consumidores interesados en el resultado.
             kafkaTemplate.send(KafkaTopicConfig.PEDIDO_DECISIONS_TOPIC, pedido.getId().toString(), event);
         }
     }

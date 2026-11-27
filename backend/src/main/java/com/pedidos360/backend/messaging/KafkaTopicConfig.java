@@ -10,8 +10,10 @@ import org.springframework.kafka.config.TopicBuilder;
 /** Define tópicos versionables y sus políticas de conservación para Pedidos360. */
 @Configuration
 public class KafkaTopicConfig {
+    // El sufijo v1 permite evolucionar el contrato sin romper consumidores existentes.
     public static final String PEDIDO_EVENTS_TOPIC = "pedidos.events.v1";
     public static final String PEDIDO_DECISIONS_TOPIC = "pedidos.decisions.v1";
+    // La evaluación solicita tres particiones y tres réplicas, una por broker.
     private static final int PARTITIONS = 3;
     private static final short REPLICAS = 3;
 
@@ -32,6 +34,7 @@ public class KafkaTopicConfig {
                 .configs(Map.of(
                         TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE,
                         TopicConfig.RETENTION_MS_CONFIG, retentionMs,
+                        // Con tres réplicas, exige dos ISR antes de confirmar la escritura.
                         TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2"))
                 .build();
     }
