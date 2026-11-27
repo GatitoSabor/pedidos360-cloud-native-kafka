@@ -44,6 +44,13 @@ public class KafkaAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/topics/{name}/partitions")
+    ResponseEntity<Void> increasePartitions(@PathVariable @Pattern(regexp = "^[a-z0-9][a-z0-9.-]{1,80}$") String name,
+            @Valid @RequestBody TopicPartitionsRequest request) throws Exception {
+        kafkaAdminService.increasePartitions(name, request);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/topics/{name}")
     ResponseEntity<Void> deleteTopic(@PathVariable @Pattern(regexp = "^[a-z0-9][a-z0-9.-]{1,80}$") String name) throws Exception {
         kafkaAdminService.deleteTopic(name);

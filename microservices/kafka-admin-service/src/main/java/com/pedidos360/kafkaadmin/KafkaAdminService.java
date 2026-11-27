@@ -7,7 +7,10 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AlterConfigOp;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.NewPartitions;
 import org.apache.kafka.common.config.ConfigResource;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
 
 /** Operaciones reproducibles sobre tópicos y grupos, aisladas de la API HTTP. */
@@ -41,6 +44,17 @@ public class KafkaAdminService {
                 .map(entry -> new AlterConfigOp(new ConfigEntry(entry.getKey(), entry.getValue()), AlterConfigOp.OpType.SET))
                 .toList();
         adminClient.incrementalAlterConfigs(Map.of(resource, operations)).all().get();
+    }
+
+    /** Kafka permite ampliar un tópico; reducir sus particiones no está soportado. */
+    public void increasePartitions(String topicName, TopicPartitionsRequest request) throws Exception {
+        int currentPartitions = adminClient.describeTopics(List.of(topicName)).allTopicNames().get()
+                .get(topicName).partitions().size();
+        if (request.totalPartitions() <= currentPartitions) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El total debe ser mayor que las " + currentPartitions + " particiones existentes");
+        }
+        adminClient.createPartitions(Map.of(topicName, NewPartitions.increaseTo(request.totalPartitions()))).all().get();
     }
 
     public void deleteTopic(String topicName) throws Exception {

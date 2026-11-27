@@ -84,7 +84,7 @@ Para demostrar mensajería local sin depender de RDS, inicia `backend` con el pe
 
 Para el perfil que usa PostgreSQL, define `DB_PASSWORD` en el entorno antes de iniciar el backend. El repositorio incluye `.env.example` como referencia y no contiene la contraseña real.
 
-4. Iniciar `frontend` con `npm install` y `npm run dev`.
+4. Configurar e iniciar `frontend`. Copia `frontend/.env.example` como `frontend/.env.local` y reemplaza los valores de Cognito y la URL del API. Después ejecuta `npm install` y `npm run dev`.
 
 Los usuarios de RabbitMQ Management son `guest/guest` en `http://localhost:15672` y `http://localhost:15673`.
 
@@ -107,9 +107,12 @@ DELETE /api/rabbitmq/bindings     { "queue": "demo.queue", "exchange": "demo.eve
 POST   /api/kafka/topics                  { "name": "demo.events", "partitions": 3, "replicationFactor": 3, "configs": { "retention.ms": "604800000" } }
 GET    /api/kafka/topics
 PUT    /api/kafka/topics/{name}/configs   { "configs": { "retention.ms": "259200000" } }
+PUT    /api/kafka/topics/{name}/partitions { "totalPartitions": 6 }
 DELETE /api/kafka/topics/{name}
 GET    /api/kafka/consumer-groups
 ```
+
+La ampliación de particiones solo admite un total mayor que el actual; Kafka no permite reducirlas. No modifica el factor de replicación de un tópico existente.
 
 ## Evidencias EP3
 
