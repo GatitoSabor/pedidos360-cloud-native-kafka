@@ -18,6 +18,12 @@ notificaciones.dlq              documentos.dlq                auditoria.dlq
         \_____________________ Direct: pedidos.dlx _____________/
 
 rabbitmq-admin-service: REST para crear/eliminar queues, exchanges y bindings.
+
+Kafka en paralelo:
+pedidos-service -> pedidos.events.v1 -> auditoria-service
+pedidos-service -> pedidos.decisions.v1 -> notificaciones-service, documentos-service
+
+kafka-admin-service: REST para administrar tópicos, configuraciones y consumer groups.
 ```
 
 | Evento | Productor | Consumidor | Uso |
@@ -36,7 +42,20 @@ Cada cola principal es durable, tiene una DLQ durable y está unida al exchange 
 - `microservices/documentos-service/`: listener de `documentos.queue`.
 - `microservices/auditoria-service/`: listener de `auditoria.queue`.
 - `microservices/rabbitmq-admin-service/`: administración REST de RabbitMQ.
+- `microservices/kafka-admin-service/`: administración REST de Kafka (tópicos, configuraciones y consumer groups).
 - `docker-compose.rabbitmq.yml`: dos nodos RabbitMQ (AMQP: 5672/5673; UI: 15672/15673).
+- `docker-compose.kafka.yml`: tres ZooKeepers, tres brokers Kafka y Kafka UI (`http://localhost:8088`).
+
+## Streaming Kafka EP5
+
+Kafka complementa RabbitMQ: cada cambio sigue publicándose en `pedidos.events` de RabbitMQ para conservar el flujo de colas y DLQ, y además se emite como evento JSON con key `pedidoId` hacia Kafka.
+
+| Tópico | Productor | Consumer group | Propósito | Configuración |
+|---|---|---|---|---|
+| `pedidos.events.v1` | pedidos-service | `auditoria-stream-v1` | Trazabilidad de creación y actualizaciones | 3 particiones, 3 réplicas, retención 7 días |
+| `pedidos.decisions.v1` | pedidos-service | `notificaciones-stream-v1`, `documentos-stream-v1` | Reaccionar a aprobaciones y rechazos | 3 particiones, 3 réplicas, retención 30 días |
+
+Los consumers registran tópico, partición y offset. Ante una descripción con `[FALLAR-KAFKA]`, realizan tres reintentos con espera de un segundo y después registran el descarte contextualizado. Esto permite demostrar tanto operación normal como tratamiento controlado de errores.
 
 ## Ejecución local
 
@@ -47,7 +66,15 @@ docker compose -f docker-compose.rabbitmq.yml up -d
 docker exec rabbitmq-1 rabbitmqctl cluster_status
 ```
 
-2. En terminales separadas, iniciar los servicios en este orden: `backend`, `microservices/notificaciones-service`, `microservices/documentos-service`, `microservices/auditoria-service` y `microservices/rabbitmq-admin-service`.
+2. Levantar Kafka y Kafka UI:
+
+```powershell
+docker compose -f docker-compose.kafka.yml up -d
+```
+
+Kafka UI queda disponible en `http://localhost:8088`. Cuando los tres brokers estén disponibles, iniciar `backend` crea los dos tópicos mediante `KafkaTopicConfig`.
+
+3. En terminales separadas, iniciar los servicios en este orden: `backend`, `microservices/notificaciones-service`, `microservices/documentos-service`, `microservices/auditoria-service`, `microservices/rabbitmq-admin-service` y `microservices/kafka-admin-service`.
 
 ```powershell
 ./mvnw.cmd spring-boot:run
@@ -57,7 +84,7 @@ Para demostrar mensajería local sin depender de RDS, inicia `backend` con el pe
 
 Para el perfil que usa PostgreSQL, define `DB_PASSWORD` en el entorno antes de iniciar el backend. El repositorio incluye `.env.example` como referencia y no contiene la contraseña real.
 
-3. Iniciar `frontend` con `npm install` y `npm run dev`.
+4. Iniciar `frontend` con `npm install` y `npm run dev`.
 
 Los usuarios de RabbitMQ Management son `guest/guest` en `http://localhost:15672` y `http://localhost:15673`.
 
@@ -72,6 +99,16 @@ POST   /api/rabbitmq/exchanges    { "name": "demo.events", "type": "topic", "dur
 DELETE /api/rabbitmq/exchanges/{name}
 POST   /api/rabbitmq/bindings     { "queue": "demo.queue", "exchange": "demo.events", "routingKey": "pedido.*" }
 DELETE /api/rabbitmq/bindings     { "queue": "demo.queue", "exchange": "demo.events", "routingKey": "pedido.*" }
+```
+
+## API del administrador Kafka
+
+```text
+POST   /api/kafka/topics                  { "name": "demo.events", "partitions": 3, "replicationFactor": 3, "configs": { "retention.ms": "604800000" } }
+GET    /api/kafka/topics
+PUT    /api/kafka/topics/{name}/configs   { "configs": { "retention.ms": "259200000" } }
+DELETE /api/kafka/topics/{name}
+GET    /api/kafka/consumer-groups
 ```
 
 ## Evidencias EP3

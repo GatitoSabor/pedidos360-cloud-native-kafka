@@ -71,6 +71,7 @@ public class RabbitTopologyConfig {
     /** Crea una cola principal durable con la ruta de dead-letter configurada. */
     private Queue mainQueue(String queueName, String dlqName) {
         return QueueBuilder.durable(queueName)
+        /**Parametros para DLQ */
                 .deadLetterExchange(DLX_EXCHANGE)
                 .deadLetterRoutingKey(dlqName)
                 .build();

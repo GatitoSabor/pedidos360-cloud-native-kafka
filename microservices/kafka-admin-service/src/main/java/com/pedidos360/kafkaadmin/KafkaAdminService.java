@@ -1,0 +1,56 @@
+package com.pedidos360.kafkaadmin;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AlterConfigOp;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.common.config.ConfigResource;
+import org.springframework.stereotype.Service;
+
+/** Operaciones reproducibles sobre tópicos y grupos, aisladas de la API HTTP. */
+@Service
+public class KafkaAdminService {
+    private final AdminClient adminClient;
+
+    public KafkaAdminService(AdminClient adminClient) {
+        this.adminClient = adminClient;
+    }
+
+    public void createTopic(TopicRequest request) throws Exception {
+        NewTopic topic = new NewTopic(request.name(), request.partitions(), request.replicationFactor());
+        if (request.configs() != null && !request.configs().isEmpty()) topic.configs(request.configs());
+        adminClient.createTopics(List.of(topic)).all().get();
+    }
+
+    public List<TopicSummary> listTopics() throws Exception {
+        var names = adminClient.listTopics().names().get();
+        var descriptions = adminClient.describeTopics(names).allTopicNames().get();
+        return descriptions.values().stream()
+                .map(topic -> new TopicSummary(topic.name(), topic.partitions().size(),
+                        topic.partitions().isEmpty() ? 0 : topic.partitions().get(0).replicas().size()))
+                .sorted(java.util.Comparator.comparing(TopicSummary::name))
+                .toList();
+    }
+
+    public void updateTopicConfig(String topicName, TopicConfigRequest request) throws Exception {
+        ConfigResource resource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
+        Collection<AlterConfigOp> operations = request.configs().entrySet().stream()
+                .map(entry -> new AlterConfigOp(new ConfigEntry(entry.getKey(), entry.getValue()), AlterConfigOp.OpType.SET))
+                .toList();
+        adminClient.incrementalAlterConfigs(Map.of(resource, operations)).all().get();
+    }
+
+    public void deleteTopic(String topicName) throws Exception {
+        adminClient.deleteTopics(List.of(topicName)).all().get();
+    }
+
+    public List<String> listConsumerGroups() throws Exception {
+        return adminClient.listConsumerGroups().all().get().stream()
+                .map(group -> group.groupId()).sorted().toList();
+    }
+
+    public record TopicSummary(String name, int partitions, int replicationFactor) { }
+}
